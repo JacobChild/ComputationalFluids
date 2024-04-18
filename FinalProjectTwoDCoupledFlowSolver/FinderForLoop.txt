@@ -1,0 +1,32 @@
+# Define the possible values for A, B, C, and D
+A_values = [αuf, 1/αuf, 1, 0]
+B_values = [αuf, 1/αuf, 1, 0]
+C_values = [αvf, 1/αvf, 1, 0]
+D_values = [αvf, 1/αvf, 1, 0]
+
+# Initialize a matrix to store the results
+results = zeros(length(A_values), length(B_values), length(C_values), length(D_values))
+
+# Define the target value and a tolerance
+target = 6.11437
+tolerance = 0.001
+
+# Iterate over all combinations of A, B, C, and D
+for (i, A) in enumerate(A_values)
+    for (j, B) in enumerate(B_values)
+        for (k, C) in enumerate(C_values)
+            for (l, D) in enumerate(D_values)
+                # Calculate the expression
+                result = ρf*dyf*(dip1J*A+diJ*B) + ρf * dxf *(dIjp1*C+dIj*D)
+                
+                # Store the result in the matrix
+                results[i, j, k, l] = result
+                
+                # Check if the result is close to the target value
+                if abs(result - target) < tolerance
+                    println("Found a close value at A=$A, B=$B, C=$C, D=$D: $result")
+                end
+            end
+        end
+    end
+end

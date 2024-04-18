@@ -1,0 +1,24 @@
+function AMaker2D(ap, ae, aw, an, as, sizer)
+    ny, nx = sizer
+    n = nx * ny
+    A = zeros(n, n)
+    for j in 1:ny
+        for i in 1:nx
+            k = (j-1)*nx + i
+            A[k, k] = ap[j, i]  # Main diagonal
+            if i != nx
+                A[k, k+1] = -ae[j, i]  # East
+            end
+            if i != 1
+                A[k, k-1] = -aw[j, i]  # West
+            end
+            if j != ny
+                A[k, k+nx] = -an[j, i]  # North
+            end
+            if j != 1
+                A[k, k-nx] = -as[j, i]  # South
+            end
+        end
+    end
+    return A
+end

@@ -1,0 +1,8 @@
+CFDProjectNotes.txt
+CylinderDiameter = 0.01m
+Boundaries = 25diam in front, 40diam wide (20 each side), 100diam behind
+WakeRefinement = 0.3radians spread, 0.2m behind (20diam)
+BoundaryLayerHeight H = 0.00385 from Blasius
+AirDensity = 1.18415 kg/m^3
+DynamicViscosity = 1.85508*10^-8
+Vinf = 0.0313 m/sVelo
