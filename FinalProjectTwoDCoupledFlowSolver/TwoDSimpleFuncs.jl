@@ -198,7 +198,7 @@ function pPrimeABMaker(uapf, vapf, usnewf, vsnewf, Pf; dxf = dx, dyf = dy, αuf 
         aIp1J[i] = dip1J * ρf * dyf 
         aIm1J[i] = diJ * ρf * dyf 
         aIJp1[i] = dIjp1 * ρf * dxf 
-        aIJm1[i] = dIj * ρf * dxf  #!off by a factor of 2, ie divide by 2?
+        aIJm1[i] = dIj * ρf * dxf  
 
         # #wall corrections
         # if wallflag == "lower"
@@ -258,25 +258,24 @@ function iterator(u,v,P;)
 
     #internal  for loop only 
     for i in axes(u[1:end-2,:],1)
-        aues[i+1,:], auws[i+1,:], auns[i+1,:], auss[i+1,:], aups[i+1,:], Bus[i+1,:]  = uABMaker(u[i:i+2,:], v[i+1:i+2,:], P[i+1,:])
+    aues[i+1,:], auws[i+1,:], auns[i+1,:], auss[i+1,:], aups[i+1,:], Bus[i+1,:]  = uABMaker(u[i:i+2,:], v[i+1:i+2,:], P[i+1,:])
     end
 
     #bottom wall
     aues[end,:], auws[end,:], auns[end,:], auss[end,:], aups[end,:], Bus[end,:] = uABMaker(u[end-2:end,:], v[end-1:end,:], P[end,:], wallflag = "lower")
 
-    Au = AMaker2D(aups, aues, auws, auns, auss, size(u))
-    u1 = Au \ vec(Bus')
-    u1 = reshape(u1, reverse(size(u)))' #all the transformations are required to get it looking correct
-    #TODO: what is the proper way to do the mdot correction?
-    mdotinapparent = sum(u1[:,1]) * W
-    mdotoutappar = sum(u1[:,end]) * W
+    Au = AMaker2D(reverse(aups,dims=1),reverse(aues,dims=1),reverse(auws,dims=1),reverse(auns,dims=1),reverse(auss,dims=1),size(u))
+    u1 = reverse(reshape(Au \ vec(reverse(Bus,dims=1)'),reverse(size(u)))',dims=1)
+    #mdot correction
+    mdotinapparent = sum(u1[:,1]) 
+    mdotoutappar = sum(u1[:,end])
     u1[:,end] = u1[:,end] * mdotinapparent / mdotoutappar
 
     #v calculations
     #upper wall
     aves[1,:], avws[1,:], avns[1,:], avss[1,:], avps[1,:], Bvs[1,:] = vABMaker(u1[1:2,:], v[1:3,:], P[1:2,:], wallflag = "upper")
     #internal  for loop only 
-    for i in axes(v[1:end-2,:],1)
+    for i in axes(v[1:end-2,:],1)   
         aves[i+1,:], avws[i+1,:], avns[i+1,:], avss[i+1,:], avps[i+1,:], Bvs[i+1,:] = vABMaker(u1[i:i+1,:], v[i:i+2,:], P[i:i+1,:])
 
     end
@@ -284,9 +283,8 @@ function iterator(u,v,P;)
     #bottom wall
     aves[end,:], avws[end,:], avns[end,:], avss[end,:], avps[end,:], Bvs[end,:] = vABMaker(u1[end-1:end,:], v[end-2:end,:], P[end-1:end,:], wallflag = "lower")
 
-    Av = AMaker2D(avps, aves, avws, avns, avss, size(v))
-    v1 = Av \ vec(Bvs');
-    v1 = reshape(v1, reverse(size(v)))'
+    Av = AMaker2D(reverse(avps,dims=1),reverse(aves,dims=1),reverse(avws,dims=1),reverse(avns,dims=1),reverse(avss,dims=1),size(v))
+    v1 = reverse(reshape(Av \ vec(reverse(Bvs,dims=1)'),reverse(size(v)))', dims=1)
 
     #P calculations
     #upper wall
@@ -297,21 +295,29 @@ function iterator(u,v,P;)
     end
     #bottom wall 
     apes[end,:], apws[end,:], apns[end,:], apss[end,:], apps[end,:], Bps[end,:] = pPrimeABMaker(aups[end,:],avps[end-1:end,:],u1[end,:],v1[end-1:end,:],P[end,:], wallflag = "lower")
-    println("here")
-    Ap = AMaker2D(apps, apes, apws, apns, apss, size(P))
-    P1 = Ap \ vec(Bps')
-    P1 = reshape(P1, reverse(size(P)))'
 
+
+    AP = AMaker2D(reverse(apps,dims=1),reverse(apes,dims=1),reverse(apws,dims=1),reverse(apns,dims=1),reverse(apss,dims=1),size(P))
+    P1 = reverse(reshape(AP \ vec(reverse(Bps,dims=1)'),reverse(size(P)))', dims=1)
+    
     #Calculate the new P, u, v
-    Pnew = P .+ αp .* P1
+    #Pnew = P .+ αp .* P1
+    Pnew = deepcopy(P1)
+    Pnew[:,1:end-1] = P[:,1:end-1] .+ αp .* P1[:,1:end-1]
+    #println("Pnew: ", Pnew)
+    #throw("error")
     diJ = dy ./ aups
     dIj = dx ./ avps
     unew = deepcopy(u1)
     vnew = deepcopy(v1)
+    
     unew[:,2:end-1] = u1[:,2:end-1] .+ diJ[:,2:end-1] .* -diff(P1,dims=2)
-    vnew[2:4,2:5] = v1[2:4,2:5] .+ dIj[2:4,2:5] .* diff(P1,dims=1)
+    vnew[2:end-1,2:end-1] = v1[2:end-1,2:end-1] .+ dIj[2:end-1,2:end-1] .* diff(P1,dims=1)
+    #enforce the boundary condition
+    vnew[:,end] .= 0
+    
 
-    return unew, vnew, Pnew, Au, Av, Ap
+    return unew, vnew, Pnew, Au, Av, AP
 end
 
 
@@ -338,8 +344,15 @@ function Converger(ustartf, vstartf, Pstartf;)
 
     #iterate 
     #while !isapprox(1+maximum(Aus[end] * ustore[end-1] - Bus[end]), 1, atol = 1e-5) || !isapprox(1+maximum(Avs[end] * vstore[end-1] - Bvs[end]), 1, atol = 1e-5) || !isapprox(1+maximum(Aps[end] * Pstore[end-1] - Bps[end]), 1, atol = 1e-5)
-    while maximum(ustore[end] - ustore[end-1]) > 1e-5 || maximum(vstore[end] - vstore[end-1]) > 1e-5 || maximum(Pstore[end] - Pstore[end-1]) > 1e-5
+    tolerance = 1e-6
 
+    counter = 0
+    gcounter = 0
+
+    while maximum(ustore[end] - ustore[end-1]) > tolerance || maximum(vstore[end] - vstore[end-1]) > tolerance || maximum(Pstore[end] - Pstore[end-1]) > tolerance
+    #while max(abs(Aus[end]*ustore[end] - Bus[end])) > 1e-5 || max(abs(Avs[end]*vstore[end] - Bvs[end])) > 1e-5
+        counter += 1
+        gcounter += 1
         u2, v2, P2, Au2, Av2, Ap2 = iterator(ustore[end], vstore[end], Pstore[end])
         push!(ustore, u2)
         push!(vstore, v2)
@@ -351,7 +364,29 @@ function Converger(ustartf, vstartf, Pstartf;)
         popfirst!(Aus)
         popfirst!(Avs)
         popfirst!(Aps)
+        # #!for big run only
+        # popfirst!(ustore)
+        # popfirst!(vstore)
+        # popfirst!(Pstore)
+        # #!for big run only
+        
+        #actively update the relaxation Factors
+        val = .001 #works at N=64 and .025
+        if counter > 200 && αu > val
+            global αu, αv, αp
+            αu = αu - val
+            αv = αv - val
+            αp = αp - val
+            counter = 0
+        end
+        if gcounter > 350
+            println("The simulation has failed to converge.")
+            break
+        end
+
     end
+    println("Total Iterations: ", gcounter)
+    
 
     return ustore, vstore, Pstore
 end
@@ -390,3 +425,39 @@ function RichardsonExtrapolation(ConMetricf, Nf)
     println("The grid converged value is $(round(QFinal,digits=2)).")
     return P, QFinal
 end
+
+function meshgrid(x, y)
+    return repeat(x', length(y)), repeat(y, 1, length(x))
+end
+
+#to make this work with different sized u and v and do quiver and stream plots 
+#=
+using Interpolations
+
+# Assuming u is defined on grid xu, yu and v is defined on grid xv, yv
+xu = ...
+yu = ...
+xv = ...
+yv = ...
+
+# Create interpolation objects for u and v
+interp_u = interpolate((yu, xu), u, Gridded(Linear()))
+interp_v = interpolate((yv, xv), v, Gridded(Linear()))
+
+# Define the grid on which you want to plot the vector field
+xplot = ...
+yplot = ...
+
+# Interpolate u and v onto the plot grid
+uplot = interp_u[yplot, xplot]
+vplot = interp_v[yplot, xplot]
+
+# Generate a grid of points
+X, Y = meshgrid(xplot, yplot)
+
+# Create a quiver plot for the vector field
+quiver(X, Y, quiver=(uplot, vplot), color=:grayscale)
+
+# Create a streamline plot
+streamplot(X, Y, uplot, vplot, color=:grayscale)
+=#
